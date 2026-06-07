@@ -1,0 +1,11 @@
+version: "3.8"
+services:
+  tts-service:
+    # 改成你的 GHCR 镜像地址
+    image: ghcr.io/jiayoupengpeng/tts-audiobook:latest
+    container_name: tts-audio
+    ports:
+      - "8080:8000"
+    volumes:
+      - ./output:/app/output
+    restart: unless-stopped

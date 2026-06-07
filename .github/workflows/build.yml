@@ -1,0 +1,32 @@
+name: Build and Push Docker Image
+
+# 触发条件：当 main 分支有代码推送时自动运行
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. 拉取仓库代码
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. 登录 GitHub 容器仓库（GHCR）
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 3. 构建并推送 Docker 镜像
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          # 这里用你自己的 GitHub 用户名：jiayoupengpeng
+          tags: ghcr.io/jiayoupengpeng/tts-audiobook:latest

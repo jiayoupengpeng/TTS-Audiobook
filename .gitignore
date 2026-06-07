@@ -1,0 +1,13 @@
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# 项目生成文件
+output/
+*.log
+
+# 系统文件
+.DS_Store
+Thumbs.db
