@@ -19,6 +19,10 @@ task_history.json
 *.swp
 *.swo
 
+# Calibre database (user data, not committed)
+*.db
+*.sqlite
+
 # OS
 .DS_Store
 Thumbs.db

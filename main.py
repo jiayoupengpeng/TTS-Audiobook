@@ -1,6 +1,9 @@
 import asyncio
 import os
 import re
+import sqlite3
+import subprocess
+import tempfile
 import edge_tts
 from edge_tts.communicate import split_text_by_byte_length
 import random
@@ -452,6 +455,291 @@ async def start(
 
     bg_task.add_task(main_task, full_text, save_dir, task_name, voice, rate)
     return {"code": 0, "msg": f"任务【{task_name}】已启动"}
+
+
+# ===================== Calibre 书库集成 =====================
+CALIBRE_DB_PATH = os.environ.get("CALIBRE_DB", "./metadata.db")
+CALIBRE_LIBRARY = os.environ.get("CALIBRE_LIBRARY", "")
+
+EXTRACTABLE_FORMATS = {"EPUB", "MOBI", "AZW3", "TXT", "AZW", "DOCX", "RTF", "HTML", "HTM", "XHTML"}
+
+def get_calibre_conn():
+    """只读连接 Calibre 数据库"""
+    if not os.path.exists(CALIBRE_DB_PATH):
+        return None
+    conn = sqlite3.connect(f"file:{CALIBRE_DB_PATH}?mode=ro", uri=True)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA query_only = 1")
+    return conn
+
+def get_book_file_path(book_path: str, filename: str, fmt: str) -> str:
+    """定位书籍文件的完整路径"""
+    # 优先从 CALIBRE_LIBRARY 找
+    if CALIBRE_LIBRARY:
+        candidates = [
+            os.path.join(CALIBRE_LIBRARY, book_path, f"{filename}.{fmt.lower()}"),
+            os.path.join(CALIBRE_LIBRARY, book_path, f"{filename}.{fmt.upper()}"),
+        ]
+        for p in candidates:
+            if os.path.exists(p):
+                return p
+    # 从工作目录找 metadata.db 同目录
+    db_dir = os.path.dirname(os.path.abspath(CALIBRE_DB_PATH))
+    candidates = [
+        os.path.join(db_dir, book_path, f"{filename}.{fmt.lower()}"),
+        os.path.join(db_dir, book_path, f"{filename}.{fmt.upper()}"),
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            return p
+    return ""
+
+
+def extract_text_from_file(file_path: str, fmt: str) -> dict:
+    """从书籍文件提取文本，返回 {success, text, error, format_type}"""
+    if not os.path.exists(file_path):
+        return {"success": False, "text": "", "error": "文件不存在", "format_type": "missing"}
+    
+    fmt = fmt.upper()
+    text = ""
+    
+    # TXT - 直接读取
+    if fmt == "TXT":
+        try:
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                text = f.read()
+            if len(text.strip()) < 100:
+                return {"success": False, "text": text, "error": "文本内容过少，可能为扫描版", "format_type": fmt}
+            return {"success": True, "text": text, "error": "", "format_type": fmt}
+        except Exception as e:
+            return {"success": False, "text": "", "error": str(e), "format_type": fmt}
+    
+    # EPUB - ebooklib
+    if fmt == "EPUB":
+        try:
+            import ebooklib
+            from ebooklib import epub
+            from bs4 import BeautifulSoup
+            book = epub.read_epub(file_path)
+            for item in book.get_items():
+                if item.get_type() == ebooklib.ITEM_DOCUMENT:
+                    soup = BeautifulSoup(item.get_content(), "html.parser")
+                    text += soup.get_text(separator="\n") + "\n"
+            if len(text.strip()) < 100:
+                return {"success": False, "text": text, "error": "EPUB 提取文本过少", "format_type": fmt}
+            return {"success": True, "text": text, "error": "", "format_type": fmt}
+        except ImportError:
+            pass  # 降级到 ebook-convert
+        except Exception as e:
+            return {"success": False, "text": "", "error": str(e), "format_type": fmt}
+    
+    # PDF - pypdf
+    if fmt == "PDF":
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(file_path)
+            for page in reader.pages:
+                text += page.extract_text() + "\n"
+            if len(text.strip()) < 200:
+                return {"success": False, "text": text, "error": "PDF 未能提取出有效文本，可能是扫描版", "format_type": "PDF_SCAN"}
+            return {"success": True, "text": text, "error": "", "format_type": "PDF_TEXT"}
+        except ImportError:
+            pass
+        except Exception as e:
+            return {"success": False, "text": "", "error": str(e), "format_type": fmt}
+    
+    # MOBI/AZW3/DOCX/其他 - 尝试 ebook-convert
+    return try_ebook_convert(file_path, fmt)
+
+
+def try_ebook_convert(file_path: str, fmt: str) -> dict:
+    """使用 calibre 的 ebook-convert 提取文本"""
+    # 检查是否有 ebook-convert
+    try:
+        subprocess.run(["ebook-convert", "--version"], capture_output=True, timeout=5)
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return {"success": False, "text": "", "error": f"需要 Calibre 的 ebook-convert 工具来转换 {fmt} 格式", "format_type": fmt}
+    
+    tmp_txt = tempfile.mktemp(suffix=".txt")
+    try:
+        result = subprocess.run(
+            ["ebook-convert", file_path, tmp_txt],
+            capture_output=True, timeout=120, text=True
+        )
+        if result.returncode != 0:
+            return {"success": False, "text": "", "error": f"ebook-convert 失败: {result.stderr[:200]}", "format_type": fmt}
+        with open(tmp_txt, "r", encoding="utf-8", errors="ignore") as f:
+            text = f.read()
+        os.unlink(tmp_txt)
+        if len(text.strip()) < 100:
+            return {"success": False, "text": text, "error": f"{fmt} 转换后文本过少，可能无法提取", "format_type": fmt}
+        return {"success": True, "text": text, "error": "", "format_type": fmt}
+    except subprocess.TimeoutExpired:
+        try: os.unlink(tmp_txt)
+        except: pass
+        return {"success": False, "text": "", "error": "转换超时（>120秒）", "format_type": fmt}
+    except Exception as e:
+        try: os.unlink(tmp_txt)
+        except: pass
+        return {"success": False, "text": "", "error": str(e), "format_type": fmt}
+
+
+def check_is_extractable(fmt: str) -> str:
+    """返回格式的可提取状态: extractable / limited / unsupported"""
+    fmt = fmt.upper()
+    if fmt in {"EPUB", "MOBI", "AZW3", "TXT", "AZW", "DOCX", "RTF", "HTML", "XHTML"}:
+        return "extractable"
+    if fmt == "PDF":
+        return "limited"
+    return "unsupported"
+
+
+@app.get("/api/calibre/stats")
+async def calibre_stats():
+    """书库统计"""
+    conn = get_calibre_conn()
+    if not conn:
+        return {"available": False, "msg": "未找到 Calibre 数据库，请设置 CALIBRE_DB 环境变量"}
+    
+    cur = conn.execute("""
+        SELECT d.format, COUNT(*) as cnt
+        FROM data d GROUP BY d.format ORDER BY cnt DESC
+    """)
+    format_stats = {r["format"]: r["cnt"] for r in cur.fetchall()}
+    
+    cur = conn.execute("SELECT COUNT(*) as total FROM books")
+    total = cur.fetchone()["total"]
+    
+    cur = conn.execute("SELECT COUNT(*) as cnt FROM books WHERE has_cover=1")
+    has_cover = cur.fetchone()["cnt"]
+    
+    extractable = sum(v for k, v in format_stats.items() if check_is_extractable(k) == "extractable")
+    limited = sum(v for k, v in format_stats.items() if check_is_extractable(k) == "limited")
+    
+    conn.close()
+    return {
+        "available": True,
+        "total_books": total,
+        "has_cover": has_cover,
+        "format_stats": format_stats,
+        "extractable": extractable,
+        "limited": limited,
+    }
+
+
+@app.get("/api/calibre/books")
+async def calibre_books(page: int = 1, per_page: int = 50, search: str = ""):
+    """列出书籍"""
+    conn = get_calibre_conn()
+    if not conn:
+        return {"books": [], "total": 0, "page": page}
+    
+    where = ""
+    params = []
+    if search.strip():
+        where = "WHERE b.title LIKE ? OR a.name LIKE ?"
+        params = [f"%{search.strip()}%", f"%{search.strip()}%"]
+    
+    # 总数
+    cur = conn.execute(f"""
+        SELECT COUNT(DISTINCT b.id) as total
+        FROM books b
+        JOIN books_authors_link bal ON bal.book = b.id
+        JOIN authors a ON a.id = bal.author
+        {where}
+    """, params)
+    total = cur.fetchone()["total"]
+    
+    # 分页
+    offset = (page - 1) * per_page
+    cur = conn.execute(f"""
+        SELECT b.id, b.title, b.path, b.has_cover,
+               a.name as author,
+               GROUP_CONCAT(d.format || ':' || d.name || ':' || printf('%.1f', d.uncompressed_size/1024.0/1024.0), '|') as formats
+        FROM books b
+        JOIN books_authors_link bal ON bal.book = b.id
+        JOIN authors a ON a.id = bal.author
+        LEFT JOIN data d ON d.book = b.id
+        {where}
+        GROUP BY b.id
+        ORDER BY b.id DESC
+        LIMIT ? OFFSET ?
+    """, params + [per_page, offset])
+    
+    books = []
+    for r in cur.fetchall():
+        fmt_list = []
+        if r["formats"]:
+            for entry in r["formats"].split("|"):
+                parts = entry.split(":")
+                if len(parts) >= 3:
+                    fmt_list.append({
+                        "format": parts[0],
+                        "name": parts[1],
+                        "size_mb": float(parts[2]),
+                        "extractable": check_is_extractable(parts[0]),
+                    })
+        books.append({
+            "id": r["id"],
+            "title": r["title"],
+            "author": r["author"],
+            "path": r["path"],
+            "has_cover": bool(r["has_cover"]),
+            "formats": fmt_list,
+            "best_format": fmt_list[0]["format"] if fmt_list else "",
+            "can_extract": any(f["extractable"] != "unsupported" for f in fmt_list),
+        })
+    
+    conn.close()
+    return {"books": books, "total": total, "page": page, "per_page": per_page}
+
+
+@app.get("/api/calibre/extract/{book_id}")
+async def calibre_extract(book_id: int):
+    """提取书籍文本"""
+    conn = get_calibre_conn()
+    if not conn:
+        return {"success": False, "error": "未找到 Calibre 数据库"}
+    
+    cur = conn.execute("""
+        SELECT b.id, b.title, b.path, a.name as author,
+               d.format, d.name
+        FROM books b
+        JOIN books_authors_link bal ON bal.book = b.id
+        JOIN authors a ON a.id = bal.author
+        JOIN data d ON d.book = b.id
+        WHERE b.id = ?
+        ORDER BY 
+            CASE d.format
+                WHEN 'TXT' THEN 0
+                WHEN 'EPUB' THEN 1
+                WHEN 'MOBI' THEN 2
+                WHEN 'AZW3' THEN 3
+                WHEN 'DOCX' THEN 4
+                WHEN 'RTF' THEN 5
+                WHEN 'HTML' THEN 6
+                WHEN 'PDF' THEN 7
+                ELSE 8
+            END
+        LIMIT 1
+    """, [book_id])
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        return {"success": False, "error": "未找到书籍"}
+    
+    fmt = row["format"]
+    file_path = get_book_file_path(row["path"], row["name"], fmt)
+    
+    if not file_path:
+        conn.close()
+        return {"success": False, "error": f"找不到文件: {row['path']}/{row['name']}.{fmt.lower()}，请挂载书库目录"}
+    
+    conn.close()
+    result = extract_text_from_file(file_path, fmt)
+    result["book_title"] = row["title"]
+    result["book_author"] = row["author"]
+    return result
 
 
 # ===================== 前端页面 =====================
@@ -923,6 +1211,55 @@ body {
   .steps { border-radius: var(--radius-sm); padding: 3px; }
   .step { padding: 8px 10px; font-size: 12px; }
 }
+
+/* ========== Calibre ========== */
+.calibre-search { margin-bottom: 10px; }
+.calibre-stats {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;
+  font-size: 11px;
+}
+.calibre-stat-tag {
+  padding: 2px 8px; border-radius: 4px; background: rgba(255,255,255,0.04);
+  color: var(--text-muted);
+}
+.calibre-stat-tag strong { color: var(--text-secondary); }
+.calibre-book-list {
+  max-height: 400px; overflow-y: auto;
+}
+.calibre-book-list::-webkit-scrollbar { width: 3px; }
+.calibre-book-list::-webkit-scrollbar-thumb { background: var(--card-border); border-radius: 2px; }
+.calibre-book {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: 6px; margin-bottom: 3px;
+  cursor: pointer; transition: all 0.2s; position: relative;
+}
+.calibre-book:hover { background: rgba(245,166,35,0.06); }
+.calibre-book.loading { opacity: 0.5; pointer-events: none; }
+.calibre-book .cb-info { flex: 1; min-width: 0; }
+.calibre-book .cb-title {
+  font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--text);
+}
+.calibre-book .cb-author {
+  font-size: 11px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.calibre-book .cb-badges { display: flex; gap: 3px; flex-shrink: 0; }
+.calibre-book .cb-badge {
+  font-size: 9px; padding: 1px 5px; border-radius: 3px; font-weight: 600;
+}
+.badge-EPUB, .badge-MOBI, .badge-AZW3, .badge-TXT, .badge-DOCX, .badge-RTF { background: rgba(52,211,153,0.12); color: var(--green); }
+.badge-PDF { background: rgba(245,166,35,0.12); color: var(--gold); }
+.badge-unsupported { background: rgba(239,68,68,0.1); color: var(--red); }
+.calibre-book .cb-status {
+  font-size: 10px; color: var(--text-muted); white-space: nowrap;
+}
+.calibre-loading-dots::after { content: '...'; animation: dots 1.2s infinite; }
+@keyframes dots { 0% { content: '.'; } 33% { content: '..'; } 66% { content: '...'; } }
+.calibre-error {
+  padding: 16px; text-align: center; color: var(--text-muted);
+  font-size: 12px;
+}
+.calibre-error-icon { font-size: 28px; display: block; margin-bottom: 6px; }
 </style>
 </head>
 <body>
@@ -1067,6 +1404,19 @@ body {
         <div class="side-title">🕐 合成历史 <button class="btn btn-secondary btn-sm" onclick="loadHistory()" style="padding:2px 8px;font-size:10px">刷新</button></div>
         <div class="history-scroll" id="historyList">
           <div class="history-empty">暂无记录</div>
+        </div>
+      </div>
+
+      <div class="side-section" id="calibreSection">
+        <div class="side-title">📚 Calibre 书库 <button class="btn btn-secondary btn-sm" onclick="loadCalibreStats()" style="padding:2px 8px;font-size:10px">刷新</button></div>
+        <div id="calibrePanel">
+          <div class="calibre-search">
+            <input class="server-file-input" id="calibreSearch" placeholder="搜索书名或作者..." oninput="debounceSearch()" style="margin-bottom:0">
+          </div>
+          <div class="calibre-stats" id="calibreStats"></div>
+          <div class="calibre-book-list" id="calibreBookList">
+            <div class="history-empty">正在加载书库...</div>
+          </div>
         </div>
       </div>
 
@@ -1279,8 +1629,102 @@ async function loadHistory(){
   }catch(e){}
 }
 
+// ========== Calibre ==========
+let calibreSearchTimer = null;
+function debounceSearch() {
+  clearTimeout(calibreSearchTimer);
+  calibreSearchTimer = setTimeout(() => loadCalibreBooks(), 400);
+}
+
+async function loadCalibreStats() {
+  const panel = document.getElementById('calibrePanel');
+  try {
+    const r = await fetch('/api/calibre/stats');
+    const d = await r.json();
+    if (!d.available) {
+      document.getElementById('calibreStats').innerHTML = '';
+      document.getElementById('calibreBookList').innerHTML =
+        '<div class="calibre-error"><span class="calibre-error-icon">📭</span>未检测到 Calibre 书库<br><span style="font-size:11px">请将 metadata.db 放置在程序目录，<br>或设置 CALIBRE_DB 环境变量</span></div>';
+      return;
+    }
+    const tags = [];
+    tags.push('<span class="calibre-stat-tag">📚 <strong>' + d.total_books + '</strong> 本</span>');
+    tags.push('<span class="calibre-stat-tag">✅ <strong>' + d.extractable + '</strong> 可转</span>');
+    if (d.limited > 0) tags.push('<span class="calibre-stat-tag">⚠️ <strong>' + d.limited + '</strong> PDF</span>');
+    document.getElementById('calibreStats').innerHTML = tags.join(' ');
+    loadCalibreBooks();
+  } catch (e) {
+    document.getElementById('calibreBookList').innerHTML =
+      '<div class="calibre-error"><span class="calibre-error-icon">❌</span>连接失败</div>';
+  }
+}
+
+async function loadCalibreBooks() {
+  const search = document.getElementById('calibreSearch').value.trim();
+  const list = document.getElementById('calibreBookList');
+  try {
+    const r = await fetch('/api/calibre/books?page=1&per_page=100&search=' + encodeURIComponent(search));
+    const d = await r.json();
+    if (!d.books || !d.books.length) {
+      list.innerHTML = '<div class="history-empty">' + (search ? '未找到匹配的书籍' : '书库为空') + '</div>';
+      return;
+    }
+    list.innerHTML = d.books.map(function(b) {
+      var badges = '';
+      if (b.formats) {
+        b.formats.forEach(function(f) {
+          var cls = f.extractable === 'extractable' ? 'badge-' + f.format : (f.extractable === 'limited' ? 'badge-PDF' : 'badge-unsupported');
+          badges += '<span class="cb-badge ' + cls + '">' + f.format + '</span>';
+        });
+      }
+      var status = b.can_extract ? '' : '<span class="cb-status" style="color:var(--red)">❌</span>';
+      return '<div class="calibre-book" onclick="extractCalibreBook(' + b.id + ', this)" title="' + escHtml(b.title) + ' — ' + escHtml(b.author) + '">' +
+        '<div class="cb-info">' +
+        '<div class="cb-title">' + escHtml(b.title) + '</div>' +
+        '<div class="cb-author">' + escHtml(b.author) + '</div>' +
+        '</div>' +
+        '<div class="cb-badges">' + badges + '</div>' +
+        status +
+        '</div>';
+    }).join('');
+
+    if (d.total > d.books.length) {
+      list.innerHTML += '<div class="history-empty" style="font-size:11px">显示 ' + d.books.length + ' / ' + d.total + ' 本，请输入更精确的搜索</div>';
+    }
+  } catch (e) {
+    list.innerHTML = '<div class="calibre-error"><span class="calibre-error-icon">❌</span>加载失败</div>';
+  }
+}
+
+async function extractCalibreBook(bookId, el) {
+  el.classList.add('loading');
+  el.querySelector('.cb-title').innerHTML = '⏳ 正在提取...';
+  try {
+    const r = await fetch('/api/calibre/extract/' + bookId);
+    const d = await r.json();
+    el.classList.remove('loading');
+
+    if (d.success) {
+      document.getElementById('pasteText').value = d.text;
+      document.getElementById('charCount').textContent = d.text.length + ' 字';
+      document.getElementById('taskName').value = d.book_title || '';
+      clearFile();
+      showToast('✅ 已加载：《' + (d.book_title || '') + '》' + (d.text.length/10000).toFixed(1) + '万字', 'success');
+      // 滚动到文本区
+      document.getElementById('pasteText').scrollIntoView({behavior: 'smooth'});
+    } else {
+      showToast('❌ ' + (d.error || '提取失败'), 'error');
+      el.querySelector('.cb-title').textContent = d.book_title || '提取失败';
+    }
+  } catch (e) {
+    el.classList.remove('loading');
+    showToast('❌ 请求失败', 'error');
+  }
+  el.querySelector('.cb-title').textContent = d && d.book_title ? d.book_title : '请求失败';
+}
+
 // ========== Init ==========
-loadHistory();scanServerFiles();
+loadHistory();scanServerFiles();loadCalibreStats();
 </script>
 
 </body>

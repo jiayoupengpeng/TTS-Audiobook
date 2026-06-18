@@ -2,8 +2,6 @@ version: "3.8"
 
 services:
   tts-audiobook:
-    # 本地构建：docker compose up -d --build
-    # 或拉取远程镜像：docker compose pull && docker compose up -d
     build:
       context: .
       dockerfile: Dockerfile
@@ -13,11 +11,15 @@ services:
       - "8080:8000"
     volumes:
       - ./output:/app/output
-      - ./task_history.json:/app/task_history.json
+      - ./metadata.db:/app/metadata.db:ro
+      # 挂载 Calibre 书库（实际书文件目录）
+      # - /path/to/calibre/library:/books:ro
     environment:
       - TZ=Asia/Shanghai
+      - CALIBRE_DB=/app/metadata.db
+      # 设置书库目录（与 volumes 对应）
+      # - CALIBRE_LIBRARY=/books
     restart: unless-stopped
-    # 健康检查
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/"]
       interval: 30s
