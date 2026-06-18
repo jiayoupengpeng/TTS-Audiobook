@@ -1,25 +1,10 @@
-# Python 编译缓存（每次构建都会重新生成，不需要打进镜像）
-__pycache__/
+__pycache__
 *.pyc
-*.pyo
-*.pyd
-
-# 本地生成的音频文件，容器运行时会自己挂载 ./output，所以忽略宿主机的 output 目录
-output/
-
-# 你的项目当前没有 models 目录，加上也无妨，避免误拷贝
-models/
-
-# Git 相关文件（容器里不需要 Git 仓库信息）
-.git/
-.github/
-*.gitignore
-
-# Docker 自身的忽略文件（没必要打进镜像）
-.dockerignore
-
-# 其他临时文件（可选补充，让镜像更干净）
-*.log
-*.tmp
-*.bak
+.git
+.gitignore
 .env
+output/*
+!output/*.txt
+task_history.json
+venv
+.venv

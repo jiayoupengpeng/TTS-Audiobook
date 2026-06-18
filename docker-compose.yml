@@ -1,11 +1,26 @@
 version: "3.8"
+
 services:
-  tts-service:
-    # 改成你的 GHCR 镜像地址
+  tts-audiobook:
+    # 本地构建：docker compose up -d --build
+    # 或拉取远程镜像：docker compose pull && docker compose up -d
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: ghcr.io/jiayoupengpeng/tts-audiobook:latest
-    container_name: tts-audio
+    container_name: tts-audiobook
     ports:
       - "8080:8000"
     volumes:
       - ./output:/app/output
+      - ./task_history.json:/app/task_history.json
+    environment:
+      - TZ=Asia/Shanghai
     restart: unless-stopped
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
