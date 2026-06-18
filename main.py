@@ -21,12 +21,12 @@ BATCH_SLEEP_MIN = 12
 BATCH_SLEEP_MAX = 20
 
 VOICE_LIST = [
-    ("zh-CN-XiaoxiaoNeural", "晓晓 女声·温暖"),
-    ("zh-CN-XiaoyiNeural", "晓艺 女声·活泼"),
-    ("zh-CN-YunyangNeural", "云扬 男声·新闻"),
-    ("zh-CN-YunxiNeural", "云希 男声·阳光"),
-    ("zh-CN-YunjianNeural", "云健 男声·激情"),
-    ("zh-CN-YunxiaNeural", "云夏 女声·可爱"),
+    ("zh-CN-XiaoxiaoNeural", "晓晓 女声·温暖", "🎀"),
+    ("zh-CN-XiaoyiNeural", "晓艺 女声·活泼", "🌸"),
+    ("zh-CN-YunyangNeural", "云扬 男声·新闻", "📰"),
+    ("zh-CN-YunxiNeural", "云希 男声·阳光", "☀️"),
+    ("zh-CN-YunjianNeural", "云健 男声·激情", "🔥"),
+    ("zh-CN-YunxiaNeural", "云夏 女声·可爱", "🎀"),
 ]
 
 app = FastAPI(title="📖 TTS 有声书工坊")
@@ -462,515 +462,827 @@ async def index():
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>📖 TTS 有声书工坊</title>
+<title>📖 有声书工坊</title>
 <style>
-/* ============ CSS 变量 & 全局 ============ */
+/* ========== Reset & Base ========== */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 :root {
-  --bg: #0b0e17;
-  --surface: rgba(255,255,255,0.04);
-  --surface-hover: rgba(255,255,255,0.08);
-  --card: rgba(255,255,255,0.06);
-  --card-border: rgba(255,255,255,0.08);
-  --text: #e8edf5;
-  --text-dim: #8892a8;
-  --accent: #5b8def;
-  --accent-glow: rgba(91,141,239,0.3);
+  --bg: #0a0e1a;
+  --surface: #111827;
+  --surface-hover: #1a2235;
+  --card: #0f1525;
+  --card-border: #1e2a45;
+  --card-border-hover: #2d3f66;
+  --text: #eef2f8;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --gold: #f5a623;
+  --gold-light: #fbbf4a;
+  --gold-glow: rgba(245,166,35,0.2);
+  --gold-glow-strong: rgba(245,166,35,0.35);
   --green: #34d399;
-  --green-glow: rgba(52,211,153,0.25);
-  --orange: #f59e0b;
   --red: #ef4444;
-  --radius: 14px;
-  --gap: 20px;
+  --blue: #60a5fa;
+  --radius: 16px;
+  --radius-sm: 10px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.3);
 }
-*{margin:0;padding:0;box-sizing:border-box}
-body{
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans SC",sans-serif;
-  background:var(--bg);color:var(--text);min-height:100vh;
-  background-image:radial-gradient(ellipse at 20% 50%, rgba(91,141,239,0.06) 0%, transparent 50%),
-                    radial-gradient(ellipse at 80% 20%, rgba(52,211,153,0.04) 0%, transparent 50%);
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Noto Sans SC", "PingFang SC", "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  background-image:
+    radial-gradient(ellipse at 10% 30%, rgba(245,166,35,0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 90% 70%, rgba(96,165,250,0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 0%, rgba(245,166,35,0.02) 0%, transparent 40%);
+  line-height: 1.6;
+  overflow-x: hidden;
 }
-/* ============ 布局 ============ */
-.app{max-width:1300px;margin:0 auto;padding:24px}
-.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:12px}
-.header h1{font-size:22px;font-weight:600;background:linear-gradient(135deg,#5b8def,#34d399);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-0.3px}
-.header-badge{font-size:12px;color:var(--text-dim);background:var(--surface);padding:6px 14px;border-radius:20px;border:1px solid var(--card-border)}
-.grid{display:grid;grid-template-columns:1fr 340px;gap:var(--gap)}
-@media(max-width:900px){.grid{grid-template-columns:1fr}}
-/* ============ 卡片 ============ */
-.card{
-  background:var(--card);border:1px solid var(--card-border);border-radius:var(--radius);
-  padding:22px;backdrop-filter:blur(12px);transition:border-color 0.2s;
+/* ========== Layout ========== */
+.app { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+.app-header {
+  display: flex; align-items: center; gap: 16px; margin-bottom: 40px;
+  position: relative;
 }
-.card:hover{border-color:rgba(255,255,255,0.12)}
-.card-title{font-size:14px;font-weight:500;color:var(--text-dim);margin-bottom:16px;display:flex;align-items:center;gap:8px}
-/* ============ 上传区 ============ */
-.drop-zone{
-  border:2px dashed rgba(255,255,255,0.15);border-radius:12px;padding:36px 20px;
-  text-align:center;cursor:pointer;transition:all 0.3s;position:relative;
-  background:rgba(91,141,239,0.02);
+.app-logo {
+  width: 44px; height: 44px; border-radius: 14px;
+  background: linear-gradient(135deg, var(--gold), #d97706);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; box-shadow: 0 4px 16px var(--gold-glow);
+  flex-shrink: 0;
 }
-.drop-zone:hover,.drop-zone.drag-over{
-  border-color:var(--accent);background:rgba(91,141,239,0.06);
-  box-shadow:0 0 30px var(--accent-glow);
+.app-title {
+  font-size: 20px; font-weight: 700;
+  letter-spacing: -0.3px;
 }
-.drop-zone-icon{font-size:36px;margin-bottom:8px}
-.drop-zone-text{font-size:14px;color:var(--text-dim)}
-.drop-zone-text span{color:var(--accent);text-decoration:underline;cursor:pointer}
-.drop-zone input{position:absolute;inset:0;opacity:0;cursor:pointer}
-/* ============ 表单 ============ */
-.form-row{display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
-.form-row label{font-size:13px;color:var(--text-dim);min-width:60px}
-.form-row input,.form-row select,.form-row textarea{
-  background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;
-  color:var(--text);padding:8px 12px;font-size:13px;outline:none;transition:all 0.2s;flex:1;min-width:120px;
+.app-title span { color: var(--gold); }
+.app-subtitle {
+  font-size: 13px; color: var(--text-muted);
+  margin-top: 2px;
 }
-.form-row input:focus,.form-row select:focus,.form-row textarea:focus{
-  border-color:var(--accent);box-shadow:0 0 12px var(--accent-glow);
+.app-version {
+  margin-left: auto; font-size: 11px; color: var(--text-muted);
+  padding: 6px 14px; border: 1px solid var(--card-border); border-radius: 20px;
+  background: var(--surface);
 }
-.form-row textarea{resize:vertical;min-height:80px;font-family:inherit}
-.form-row select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238892a8'%3E%3Cpath d='M2 4l4 4 4-4'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:32px}
-.form-row select option{background:#1a1f2e;color:#e8edf5}
-.form-divider{height:1px;background:var(--card-border);margin:16px 0}
-/* ============ 按钮 ============ */
-.btn{
-  display:inline-flex;align-items:center;gap:6px;padding:10px 20px;border-radius:10px;
-  font-size:14px;font-weight:500;border:none;cursor:pointer;transition:all 0.25s;
+/* ========== Steps ========== */
+.steps {
+  display: flex; align-items: center; gap: 0;
+  margin-bottom: 36px; padding: 4px;
+  background: var(--surface); border-radius: 100px;
+  border: 1px solid var(--card-border);
 }
-.btn-primary{background:linear-gradient(135deg,#5b8def,#4a7ad9);color:#fff;box-shadow:0 4px 14px var(--accent-glow)}
-.btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 20px var(--accent-glow)}
-.btn-primary:disabled{opacity:0.4;cursor:not-allowed;transform:none}
-.btn-danger{background:rgba(239,68,68,0.15);color:var(--red);border:1px solid rgba(239,68,68,0.2)}
-.btn-danger:hover{background:rgba(239,68,68,0.25)}
-.btn-ghost{background:var(--surface);color:var(--text-dim);border:1px solid var(--card-border)}
-.btn-ghost:hover{background:var(--surface-hover);color:var(--text)}
-.btn-sm{padding:6px 12px;font-size:12px}
-.btn-group{display:flex;gap:10px;flex-wrap:wrap}
-/* ============ 进度 ============ */
-.progress-wrap{background:rgba(255,255,255,0.06);border-radius:10px;height:8px;overflow:hidden;margin:12px 0;position:relative}
-.progress-bar{height:100%;border-radius:10px;background:linear-gradient(90deg,var(--accent),var(--green));transition:width 0.6s cubic-bezier(.4,0,.2,1);width:0%;position:relative}
-.progress-bar::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent);animation:shimmer 2s infinite}
-@keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
-.progress-info{display:flex;justify-content:space-between;font-size:12px;color:var(--text-dim)}
-/* ============ 日志 ============ */
-.log-box{
-  background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.06);border-radius:10px;
-  padding:12px;height:280px;overflow-y:auto;font-size:12px;line-height:1.7;font-family:'Cascadia Code','Fira Code','Consolas',monospace;
-  margin-top:12px;
+.step {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 10px 12px; border-radius: 100px;
+  font-size: 13px; font-weight: 500; color: var(--text-muted);
+  transition: all 0.4s ease; white-space: nowrap; cursor: default;
 }
-.log-box::-webkit-scrollbar{width:4px}
-.log-box::-webkit-scrollbar-thumb{background:var(--accent);border-radius:2px}
-/* ============ 状态徽章 ============ */
-.badge{
-  display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;
-  font-size:12px;font-weight:500;
+.step.active { background: linear-gradient(135deg, var(--gold), #d97706); color: #fff; box-shadow: 0 2px 12px var(--gold-glow); }
+.step.done { color: var(--gold); }
+.step-num {
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700;
+  background: rgba(255,255,255,0.08);
 }
-.badge-idle{background:rgba(136,146,168,0.15);color:var(--text-dim)}
-.badge-running{background:rgba(91,141,239,0.15);color:var(--accent)}
-.badge-done{background:rgba(52,211,153,0.15);color:var(--green)}
-.badge-error{background:rgba(239,68,68,0.15);color:var(--red)}
-.badge-cancelled{background:rgba(245,158,11,0.15);color:var(--orange)}
-/* ============ 下载区 ============ */
-.download-box{display:none;margin-top:16px;padding:16px;border:1px solid rgba(52,211,153,0.2);border-radius:12px;background:rgba(52,211,153,0.04)}
-.download-box.visible{display:block}
-.download-btn{display:inline-flex;align-items:center;gap:8px;padding:12px 24px;background:linear-gradient(135deg,#34d399,#2bb07f);color:#fff;border-radius:10px;text-decoration:none;font-weight:500;font-size:15px;transition:all 0.25s;box-shadow:0 4px 14px var(--green-glow)}
-.download-btn:hover{transform:translateY(-2px);box-shadow:0 6px 24px var(--green-glow)}
-/* ============ 历史记录 ============ */
-.history-list{max-height:320px;overflow-y:auto;margin-top:8px}
-.history-list::-webkit-scrollbar{width:4px}
-.history-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
-.history-item{
-  display:flex;align-items:center;justify-content:space-between;padding:10px 12px;
-  border-radius:8px;margin-bottom:4px;cursor:pointer;transition:background 0.2s;gap:8px;
+.step.active .step-num { background: rgba(255,255,255,0.25); color: #fff; }
+.step.done .step-num { background: var(--gold); color: #0a0e1a; }
+.step-icon { font-size: 14px; }
+@media(max-width:640px) { .step-label { display:none; } }
+
+/* ========== Panels ========== */
+.panels { display: grid; grid-template-columns: 1fr 340px; gap: 24px; }
+@media(max-width:900px) { .panels { grid-template-columns: 1fr; } }
+
+.panel {
+  background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius);
+  padding: 24px; transition: border-color 0.3s;
 }
-.history-item:hover{background:var(--surface)}
-.history-item .h-name{font-size:13px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.history-item .h-time{font-size:11px;color:var(--text-dim);min-width:60px;text-align:right}
-.history-item .h-state{font-size:11px}
-/* ============ 章节预览 ============ */
-.chapter-list{margin-top:12px;max-height:200px;overflow-y:auto}
-.chapter-item{
-  padding:6px 10px;font-size:12px;border-left:2px solid var(--accent);margin-bottom:4px;
-  background:rgba(91,141,239,0.04);border-radius:0 6px 6px 0;color:var(--text-dim);
-  cursor:pointer;transition:all 0.2s;
+.panel:hover { border-color: var(--card-border-hover); }
+.panel-title {
+  font-size: 13px; font-weight: 600; color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
 }
-.chapter-item:hover{background:rgba(91,141,239,0.1);color:var(--text)}
-/* ============ 响应式 ============ */
-@media(max-width:900px){
-  .app{padding:16px;margin-bottom:80px}
-  .form-row{flex-direction:column;align-items:stretch}
-  .form-row label{min-width:auto}
+.panel-divider { height: 1px; background: var(--card-border); margin: 20px 0; }
+
+/* ========== Drop Zone ========== */
+.drop-zone {
+  border: 2px dashed var(--card-border);
+  border-radius: var(--radius-sm); padding: 44px 20px;
+  text-align: center; cursor: pointer; position: relative;
+  transition: all 0.4s cubic-bezier(.4,0,.2,1);
+  background: linear-gradient(180deg, rgba(245,166,35,0.02) 0%, transparent 100%);
+  overflow: hidden;
 }
-/* ============ Toast ============ */
-.toast{
-  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:12px 24px;
-  border-radius:12px;font-size:14px;z-index:999;opacity:0;transition:all 0.4s;
-  pointer-events:none;backdrop-filter:blur(12px);
+.drop-zone::before {
+  content: ''; position: absolute; inset: -2px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, var(--gold), var(--gold-light), var(--gold));
+  opacity: 0; transition: opacity 0.4s;
+  z-index: -1;
 }
-.toast.show{opacity:1;pointer-events:auto}
-.toast-info{background:rgba(91,141,239,0.2);border:1px solid rgba(91,141,239,0.3);color:var(--accent)}
-.toast-success{background:rgba(52,211,153,0.2);border:1px solid rgba(52,211,153,0.3);color:var(--green)}
-.toast-error{background:rgba(239,68,68,0.2);border:1px solid rgba(239,68,68,0.3);color:var(--red)}
+.drop-zone:hover::before, .drop-zone.drag-over::before { opacity: 0.15; }
+.drop-zone:hover, .drop-zone.drag-over {
+  border-color: var(--gold);
+  box-shadow: 0 0 40px var(--gold-glow);
+  transform: translateY(-2px);
+}
+.drop-zone-icon {
+  font-size: 48px; display: block; margin-bottom: 12px;
+  animation: float 3s ease-in-out infinite;
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.drop-zone-text { font-size: 14px; color: var(--text-muted); }
+.drop-zone-text span { color: var(--gold); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; font-weight: 500; }
+.drop-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.file-info {
+  display: none; margin-top: 12px; padding: 12px 16px;
+  background: rgba(245,166,35,0.06); border: 1px solid rgba(245,166,35,0.15);
+  border-radius: var(--radius-sm); font-size: 13px;
+  animation: slideDown 0.3s ease;
+}
+.file-info.visible { display: flex; align-items: center; gap: 8px; }
+.file-info-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-info-size { color: var(--text-muted); font-size: 12px; }
+@keyframes slideDown { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
+
+/* ========== Textarea ========== */
+.text-input {
+  width: 100%; min-height: 100px; resize: vertical;
+  background: rgba(0,0,0,0.3); border: 1px solid var(--card-border);
+  border-radius: var(--radius-sm); color: var(--text);
+  padding: 14px 16px; font-size: 14px; font-family: inherit;
+  outline: none; transition: all 0.3s; line-height: 1.7;
+}
+.text-input:focus { border-color: var(--gold); box-shadow: 0 0 20px var(--gold-glow); }
+.text-input::placeholder { color: var(--text-muted); }
+.text-actions {
+  display: flex; gap: 8px; margin-top: 10px; align-items: center; flex-wrap: wrap;
+}
+.char-count { font-size: 12px; color: var(--text-muted); margin-left: auto; }
+
+/* ========== Form Controls ========== */
+.form-group {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 14px; flex-wrap: wrap;
+}
+.form-group:last-child { margin-bottom: 0; }
+.form-label { font-size: 13px; color: var(--text-secondary); min-width: 56px; font-weight: 500; }
+
+/* Voice Selector (Card-style) */
+.voice-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; flex: 1;
+}
+.voice-card {
+  padding: 10px 12px; border-radius: var(--radius-sm);
+  border: 1px solid var(--card-border); cursor: pointer;
+  transition: all 0.25s; background: rgba(0,0,0,0.2);
+  font-size: 13px; position: relative;
+}
+.voice-card:hover { border-color: rgba(245,166,35,0.3); background: rgba(245,166,35,0.04); }
+.voice-card.active {
+  border-color: var(--gold); background: rgba(245,166,35,0.08);
+  box-shadow: 0 0 16px var(--gold-glow);
+}
+.voice-card .v-name { font-weight: 600; color: var(--text); }
+.voice-card .v-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.voice-card .v-check {
+  position: absolute; top: 8px; right: 8px;
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid var(--card-border); transition: all 0.25s;
+  display: flex; align-items: center; justify-content: center;
+}
+.voice-card.active .v-check {
+  background: var(--gold); border-color: var(--gold);
+}
+
+.fancy-input {
+  flex: 1; min-width: 100px;
+  background: rgba(0,0,0,0.3); border: 1px solid var(--card-border);
+  border-radius: var(--radius-sm); color: var(--text);
+  padding: 10px 14px; font-size: 13px; outline: none; transition: all 0.3s;
+}
+.fancy-input:focus { border-color: var(--gold); box-shadow: 0 0 16px var(--gold-glow); }
+.fancy-input::placeholder { color: var(--text-muted); }
+
+/* ========== Buttons ========== */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px 24px; border-radius: var(--radius-sm);
+  font-size: 14px; font-weight: 600; border: none; cursor: pointer;
+  transition: all 0.3s cubic-bezier(.4,0,.2,1);
+  position: relative; overflow: hidden;
+  text-decoration: none;
+}
+.btn::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.08), transparent);
+  opacity: 0; transition: opacity 0.3s;
+}
+.btn:hover::after { opacity: 1; }
+.btn:active { transform: scale(0.97); }
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--gold), #d97706);
+  color: #0a0e1a; box-shadow: 0 4px 16px var(--gold-glow);
+  width: 100%;
+}
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px var(--gold-glow-strong);
+}
+.btn-primary:disabled { opacity: 0.35; cursor: not-allowed; transform: none; box-shadow: none; }
+
+.btn-secondary {
+  background: var(--surface); color: var(--text-secondary);
+  border: 1px solid var(--card-border);
+}
+.btn-secondary:hover { background: var(--surface-hover); color: var(--text); }
+
+.btn-danger {
+  background: rgba(239,68,68,0.1); color: var(--red);
+  border: 1px solid rgba(239,68,68,0.2);
+}
+.btn-danger:hover { background: rgba(239,68,68,0.2); }
+
+.btn-sm { padding: 8px 16px; font-size: 12px; }
+.btn-icon { width: 36px; height: 36px; padding: 0; border-radius: 8px; }
+
+.btn-group { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* ========== Progress ========== */
+.progress-section { display: none; margin-top: 0; }
+.progress-section.visible { display: block; }
+
+.progress-ring-wrap {
+  display: flex; align-items: center; gap: 28px;
+  margin-bottom: 20px;
+}
+.progress-ring {
+  position: relative; width: 80px; height: 80px; flex-shrink: 0;
+}
+.progress-ring svg { transform: rotate(-90deg); }
+.progress-ring-bg { fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 5; }
+.progress-ring-fg {
+  fill: none; stroke: url(#goldGrad); stroke-width: 5; stroke-linecap: round;
+  transition: stroke-dashoffset 0.6s cubic-bezier(.4,0,.2,1);
+}
+.progress-ring-text {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 18px; font-weight: 700;
+}
+.progress-ring-text .pct { font-size: 12px; color: var(--text-muted); margin-left: 1px; }
+
+.progress-meta { flex: 1; min-width: 0; }
+.progress-state {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 14px; font-weight: 500; margin-bottom: 6px;
+}
+.progress-detail { font-size: 12px; color: var(--text-muted); }
+
+.progress-bar-wrap {
+  width: 100%; height: 4px; border-radius: 4px;
+  background: rgba(255,255,255,0.06); overflow: hidden; position: relative;
+}
+.progress-bar-fill {
+  height: 100%; border-radius: 4px;
+  background: linear-gradient(90deg, var(--gold), var(--gold-light));
+  transition: width 0.5s cubic-bezier(.4,0,.2,1);
+  position: relative;
+}
+.progress-bar-fill::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  animation: barShimmer 1.5s infinite;
+}
+@keyframes barShimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+
+/* ========== Log ========== */
+.log-box {
+  background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.04);
+  border-radius: var(--radius-sm); padding: 14px 16px;
+  height: 220px; overflow-y: auto;
+  font-size: 12px; line-height: 1.8;
+  font-family: "SF Mono", "Cascadia Code", "Fira Code", Consolas, monospace;
+  margin-top: 16px;
+}
+.log-box::-webkit-scrollbar { width: 4px; }
+.log-box::-webkit-scrollbar-track { background: transparent; }
+.log-box::-webkit-scrollbar-thumb { background: var(--gold); border-radius: 2px; }
+
+/* ========== Status Badge ========== */
+.state-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 12px; border-radius: 20px;
+  font-size: 12px; font-weight: 500;
+}
+.state-idle { background: rgba(100,116,139,0.12); color: var(--text-muted); }
+.state-running { background: rgba(245,166,35,0.12); color: var(--gold); }
+.state-running::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--gold); animation: pulse 1s ease-in-out infinite; }
+.state-done { background: rgba(52,211,153,0.12); color: var(--green); }
+.state-error { background: rgba(239,68,68,0.12); color: var(--red); }
+.state-cancelled { background: rgba(100,116,139,0.12); color: var(--text-muted); }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+
+/* ========== Download ========== */
+.download-box {
+  display: none; margin-top: 0;
+  animation: fadeUp 0.5s ease;
+}
+.download-box.visible { display: block; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+
+.download-card {
+  background: linear-gradient(135deg, rgba(245,166,35,0.08), rgba(52,211,153,0.04));
+  border: 1px solid rgba(245,166,35,0.2);
+  border-radius: var(--radius); padding: 24px;
+  text-align: center;
+}
+.download-icon { font-size: 48px; margin-bottom: 12px; }
+.download-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+.download-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
+.download-btn {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 16px 40px;
+  background: linear-gradient(135deg, var(--gold), #d97706);
+  color: #0a0e1a; border-radius: var(--radius-sm);
+  text-decoration: none; font-weight: 700; font-size: 16px;
+  transition: all 0.3s; box-shadow: 0 4px 20px var(--gold-glow);
+}
+.download-btn:hover { transform: translateY(-3px); box-shadow: 0 8px 30px var(--gold-glow-strong); }
+
+/* ========== Side Panel ========== */
+.side-section {
+  background: var(--card); border: 1px solid var(--card-border);
+  border-radius: var(--radius); padding: 20px; margin-bottom: 20px;
+  transition: border-color 0.3s;
+}
+.side-section:hover { border-color: var(--card-border-hover); }
+.side-section:last-child { margin-bottom: 0; }
+.side-title {
+  font-size: 12px; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.8px;
+  margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between;
+}
+.side-status-content { font-size: 14px; color: var(--text-secondary); line-height: 1.7; }
+
+/* History */
+.history-scroll {
+  max-height: 260px; overflow-y: auto;
+}
+.history-scroll::-webkit-scrollbar { width: 3px; }
+.history-scroll::-webkit-scrollbar-thumb { background: var(--card-border); border-radius: 2px; }
+.history-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: 8px;
+  margin-bottom: 4px; cursor: pointer;
+  transition: all 0.2s; font-size: 13px;
+}
+.history-item:hover { background: rgba(255,255,255,0.03); }
+.history-item .h-icon { font-size: 16px; }
+.history-item .h-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-item .h-time { font-size: 11px; color: var(--text-muted); min-width: 55px; text-align: right; }
+.history-empty { color: var(--text-muted); font-size: 13px; text-align: center; padding: 20px; }
+
+/* Server files */
+.server-files-scroll {
+  max-height: 180px; overflow-y: auto;
+}
+.server-files-scroll::-webkit-scrollbar { width: 3px; }
+.server-files-scroll::-webkit-scrollbar-thumb { background: var(--card-border); border-radius: 2px; }
+.server-file-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: 6px; margin-bottom: 2px;
+  cursor: pointer; transition: all 0.2s; font-size: 12px;
+}
+.server-file-item:hover { background: rgba(245,166,35,0.06); }
+.server-file-item .sf-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.server-file-item .sf-size { color: var(--text-muted); font-size: 11px; }
+.server-file-input {
+  width: 100%;
+  background: rgba(0,0,0,0.3); border: 1px solid var(--card-border);
+  border-radius: 6px; color: var(--text); padding: 8px 12px;
+  font-size: 12px; outline: none; transition: all 0.2s; margin-bottom: 8px;
+}
+.server-file-input:focus { border-color: var(--gold); }
+
+/* ========== Chapter Preview ========== */
+.chapter-preview { margin-top: 12px; display: none; }
+.chapter-preview.visible { display: block; }
+.chapter-list {
+  max-height: 160px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.chapter-list::-webkit-scrollbar { width: 3px; }
+.chapter-list::-webkit-scrollbar-thumb { background: var(--card-border); border-radius: 2px; }
+.chapter-tag {
+  padding: 6px 12px; font-size: 12px;
+  border-left: 3px solid var(--gold);
+  background: rgba(245,166,35,0.04);
+  border-radius: 0 6px 6px 0;
+  color: var(--text-secondary);
+}
+.chapter-count { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; }
+
+/* ========== Toast ========== */
+.toast-container {
+  position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%);
+  z-index: 9999; display: flex; flex-direction: column; gap: 8px;
+  pointer-events: none;
+}
+.toast {
+  padding: 14px 24px; border-radius: var(--radius-sm);
+  font-size: 14px; backdrop-filter: blur(16px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  animation: toastIn 0.4s ease, toastOut 0.4s ease 2.6s forwards;
+  pointer-events: auto;
+  display: flex; align-items: center; gap: 10px;
+}
+.toast-success { background: rgba(52,211,153,0.15); border: 1px solid rgba(52,211,153,0.25); color: var(--green); }
+.toast-error { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.25); color: var(--red); }
+.toast-info { background: rgba(245,166,35,0.15); border: 1px solid rgba(245,166,35,0.25); color: var(--gold); }
+@keyframes toastIn { from { opacity:0; transform:translateY(16px) scale(0.95); } to { opacity:1; transform:translateY(0) scale(1); } }
+@keyframes toastOut { from { opacity:1; } to { opacity:0; transform:translateY(-8px); } }
+
+/* ========== Responsive ========== */
+@media(max-width:900px) {
+  .app { padding: 20px 16px; }
+  .app-header { margin-bottom: 28px; }
+  .voice-grid { grid-template-columns: 1fr; }
+  .progress-ring-wrap { flex-direction: column; align-items: flex-start; gap: 16px; }
+}
+@media(max-width:640px) {
+  .app { padding: 16px 12px; }
+  .app-title { font-size: 17px; }
+  .steps { border-radius: var(--radius-sm); padding: 3px; }
+  .step { padding: 8px 10px; font-size: 12px; }
+}
 </style>
 </head>
 <body>
 <div class="app">
-  <div class="header">
-    <h1>📖 TTS 有声书工坊</h1>
-    <span class="header-badge">Edge-TTS · 中文有声书</span>
+  <!-- Header -->
+  <header class="app-header">
+    <div class="app-logo">📖</div>
+    <div>
+      <div class="app-title"><span>有声书</span>工坊</div>
+      <div class="app-subtitle">TXT 电子书 → 有声书 · Edge-TTS</div>
+    </div>
+    <span class="app-version">v2.0</span>
+  </header>
+
+  <!-- Step Indicator -->
+  <div class="steps" id="steps">
+    <div class="step active" data-step="1"><span class="step-num">1</span><span class="step-label">上传文本</span></div>
+    <div class="step" data-step="2"><span class="step-num">2</span><span class="step-label">选择配置</span></div>
+    <div class="step" data-step="3"><span class="step-num">3</span><span class="step-label">生成有声书</span></div>
   </div>
 
-  <div class="grid">
-    <!-- ===== 左侧主面板 ===== -->
+  <div class="panels">
+    <!-- ========== LEFT ========== -->
     <div class="main-panel">
-      <!-- 上传区 -->
-      <div class="card">
-        <div class="card-title">📂 选择电子书</div>
+
+      <!-- Upload -->
+      <div class="panel">
+        <div class="panel-title">📂 上传电子书</div>
         <div class="drop-zone" id="dropZone">
-          <div class="drop-zone-icon">📄</div>
-          <div class="drop-zone-text">拖拽 TXT 文件到此处，或<span>点击选择文件</span></div>
+          <span class="drop-zone-icon">📄</span>
+          <div class="drop-zone-text">将 TXT 文件拖到这里，或 <span>浏览文件</span></div>
           <input type="file" id="fileInput" accept=".txt">
         </div>
-        <div id="fileInfo" style="display:none;margin-top:10px;padding:10px 14px;background:rgba(91,141,239,0.06);border-radius:8px;font-size:13px">
-          ✅ 已选择：<span id="fileName"></span> <span id="fileSize" style="color:var(--text-dim)"></span>
-          <button class="btn btn-ghost btn-sm" onclick="clearFile()" style="margin-left:8px">移除</button>
+        <div class="file-info" id="fileInfo">
+          <span>✅</span>
+          <span class="file-info-name" id="fileName"></span>
+          <span class="file-info-size" id="fileSize"></span>
+          <button class="btn btn-secondary btn-sm" onclick="clearFile()" style="margin-left:auto">移除</button>
+        </div>
+
+        <div class="panel-divider"></div>
+        <div class="panel-title">✍️ 或粘贴文本</div>
+        <textarea class="text-input" id="pasteText" rows="5" placeholder="直接粘贴小说或文章内容……"></textarea>
+        <div class="text-actions">
+          <button class="btn btn-secondary btn-sm" onclick="detectChapters()">📑 检测章节</button>
+          <span class="char-count" id="charCount">0 字</span>
+        </div>
+        <div class="chapter-preview" id="chapterPreview">
+          <div class="chapter-count" id="chapterCount"></div>
+          <div class="chapter-list" id="chapterList"></div>
         </div>
       </div>
 
-      <!-- 或粘贴文本 -->
-      <div class="card">
-        <div class="card-title">✍️ 或直接粘贴文本</div>
-        <textarea id="pasteText" rows="6" style="width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:12px;font-size:13px;font-family:inherit;outline:none;resize:vertical" placeholder="粘贴小说/文章内容..."></textarea>
-        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-ghost btn-sm" onclick="detectChaptersFromText()">📑 检测章节</button>
-          <span id="charCount" style="font-size:12px;color:var(--text-dim);align-self:center">0 字</span>
-        </div>
-        <div id="chapterPreview" class="chapter-list" style="display:none"></div>
-      </div>
+      <!-- Settings -->
+      <div class="panel" id="settingsPanel">
+        <div class="panel-title">⚙️ 合成配置</div>
 
-      <!-- 设置 -->
-      <div class="card">
-        <div class="card-title">⚙️ 合成设置</div>
-        <div class="form-row">
-          <label>音色</label>
-          <select id="voiceSel" style="flex:1">'''
-    for v_id, v_name in VOICE_LIST:
-        sel = ' selected' if v_id == DEFAULT_VOICE else ''
-        html += f'<option value="{v_id}"{sel}>{v_name}</option>\n'
-    html += r'''</select>
-          <button class="btn btn-ghost btn-sm" onclick="previewVoice()">🔊 试听</button>
+        <div class="form-group">
+          <span class="form-label">音色</span>
+          <div class="voice-grid" id="voiceGrid">'''
+    for v_id, v_name, v_icon in VOICE_LIST:
+        active = ' active' if v_id == DEFAULT_VOICE else ''
+        html += f'''<div class="voice-card{active}" data-voice="{v_id}" onclick="selectVoice(this)">
+          <div class="v-name">{v_icon} {v_name.split('·')[0].strip()}</div>
+          <div class="v-desc">{v_name.split('·')[1].strip() if '·' in v_name else ''}</div>
+          <div class="v-check">✓</div>
+        </div>\n'''
+    html += r'''</div>
         </div>
-        <div class="form-row">
-          <label>语速</label>
-          <input id="rateInput" value="+20%" style="flex:1" placeholder="例：+20% / -10% / +0%">
-          <span style="font-size:11px;color:var(--text-dim)">-50% ~ +50%</span>
+
+        <div class="form-group">
+          <span class="form-label">语速</span>
+          <div style="display:flex;gap:8px;flex:1;align-items:center">
+            <input class="fancy-input" id="rateInput" value="+20%" placeholder="例：+20% / -10%" style="flex:1">
+            <span style="font-size:11px;color:var(--text-muted);white-space:nowrap">-50% ~ +50%</span>
+            <button class="btn btn-secondary btn-sm" onclick="previewVoice()" title="试听当前音色">🔊</button>
+          </div>
         </div>
-        <div class="form-row">
-          <label>任务名</label>
-          <input id="taskName" placeholder="选填，默认用文件名或时间戳" style="flex:1">
+
+        <div class="form-group">
+          <span class="form-label">任务名</span>
+          <input class="fancy-input" id="taskName" placeholder="选填，默认用文件名">
         </div>
-        <div class="form-divider"></div>
-        <div class="btn-group">
-          <button class="btn btn-primary" id="startBtn" onclick="startTask()">🚀 开始合成</button>
+
+        <div class="panel-divider"></div>
+
+        <div class="btn-group" style="flex-direction:column">
+          <button class="btn btn-primary" id="startBtn" onclick="startTask()">
+            <span style="font-size:16px">🎙️</span> 开始合成有声书
+          </button>
           <button class="btn btn-danger" id="cancelBtn" style="display:none" onclick="cancelTask()">⏹ 取消任务</button>
         </div>
       </div>
 
-      <!-- 进度 -->
-      <div class="card" id="progressCard" style="display:none">
-        <div class="card-title">📊 合成进度 <span id="stateBadge" class="badge badge-idle">等待中</span></div>
-        <div class="progress-wrap"><div class="progress-bar" id="progressBar"></div></div>
-        <div class="progress-info">
-          <span id="progressText">0%</span>
-          <span id="progressSeg" style="color:var(--text-dim)">0/0 段</span>
-        </div>
-        <div class="log-box" id="logBox"></div>
-      </div>
+      <!-- Progress -->
+      <div class="panel progress-section" id="progressSection">
+        <svg width="0" height="0"><defs><linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="var(--gold)"/><stop offset="100%" stop-color="var(--gold-light)"/></linearGradient></defs></svg>
 
-      <!-- 下载 -->
-      <div class="card">
-        <div class="download-box" id="downloadBox">
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
-            <span style="font-size:20px">🎉</span>
-            <div>
-              <div style="font-weight:500">有声书已生成！</div>
-              <div style="font-size:12px;color:var(--text-dim)" id="downloadFileName"></div>
+        <div class="progress-ring-wrap">
+          <div class="progress-ring">
+            <svg width="80" height="80" viewBox="0 0 80 80">
+              <circle class="progress-ring-bg" cx="40" cy="40" r="34"/>
+              <circle class="progress-ring-fg" id="progressCircle" cx="40" cy="40" r="34" stroke-dasharray="213.6" stroke-dashoffset="213.6"/>
+            </svg>
+            <div class="progress-ring-text"><span id="progressNum">0</span><span class="pct">%</span></div>
+          </div>
+          <div class="progress-meta">
+            <div class="progress-state">
+              <span class="state-badge state-idle" id="stateBadge">等待中</span>
+              <span id="statusText" style="color:var(--text-muted);font-size:13px;font-weight:400">准备就绪</span>
+            </div>
+            <div class="progress-detail" id="progressDetail">0 段 · 等待开始</div>
+            <div class="progress-bar-wrap" style="margin-top:10px">
+              <div class="progress-bar-fill" id="progressBarFill" style="width:0%"></div>
             </div>
           </div>
-          <a class="download-btn" href="/download_full" download id="downloadLink">⬇ 下载完整MP3</a>
+        </div>
+        <div class="log-box" id="logBox"><span style="color:var(--text-muted)">📝 运行日志将显示在这里……</span></div>
+      </div>
+
+      <!-- Download -->
+      <div class="download-box" id="downloadBox">
+        <div class="download-card">
+          <div class="download-icon">🎉</div>
+          <div class="download-title">有声书制作完成！</div>
+          <div class="download-sub" id="downloadFileName">点击下方按钮下载</div>
+          <a class="download-btn" href="/download_full" download id="downloadLink">
+            ⬇ 下载完整 MP3
+          </a>
         </div>
       </div>
     </div>
 
-    <!-- ===== 右侧面板 ===== -->
+    <!-- ========== RIGHT SIDEBAR ========== -->
     <div class="side-panel">
-      <!-- 状态 -->
-      <div class="card">
-        <div class="card-title">🔵 当前状态</div>
-        <div style="font-size:13px;color:var(--text-dim)" id="statusText">等待任务...</div>
+      <div class="side-section">
+        <div class="side-title">📌 当前状态</div>
+        <div class="side-status-content" id="sideStatus">等待任务...</div>
       </div>
 
-      <!-- 历史记录 -->
-      <div class="card">
-        <div class="card-title" style="cursor:pointer" onclick="loadHistory()">🕐 历史记录 <span style="font-size:11px;color:var(--text-dim);margin-left:auto">点击刷新</span></div>
-        <div class="history-list" id="historyList"></div>
-      </div>
-
-      <!-- 服务器文件 -->
-      <div class="card">
-        <div class="card-title">📁 服务器文件</div>
-        <div style="margin-bottom:8px">
-          <input id="scanDir" value="./output" placeholder="目录路径" style="width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:8px 12px;font-size:12px;outline:none">
-          <button class="btn btn-ghost btn-sm" onclick="scanServerFiles()" style="margin-top:6px">🔍 扫描</button>
+      <div class="side-section">
+        <div class="side-title">🕐 合成历史 <button class="btn btn-secondary btn-sm" onclick="loadHistory()" style="padding:2px 8px;font-size:10px">刷新</button></div>
+        <div class="history-scroll" id="historyList">
+          <div class="history-empty">暂无记录</div>
         </div>
-        <div id="serverFiles" style="max-height:200px;overflow-y:auto;font-size:12px"></div>
+      </div>
+
+      <div class="side-section">
+        <div class="side-title">📁 服务器文件</div>
+        <input class="server-file-input" id="scanDir" value="./output" placeholder="目录路径">
+        <button class="btn btn-secondary btn-sm" onclick="scanServerFiles()" style="width:100%;margin-bottom:8px">🔍 扫描</button>
+        <div class="server-files-scroll" id="serverFiles">
+          <div class="history-empty" style="font-size:12px">点击扫描查看文件</div>
+        </div>
       </div>
     </div>
   </div>
 </div>
 
 <!-- Toast -->
-<div class="toast" id="toast"></div>
+<div class="toast-container" id="toastContainer"></div>
 
 <script>
-// ============ 状态变量 ============
-let pollTimer = null;
-let currentFile = null;
-
-// ============ Toast ============
-function showToast(msg, type='info'){
-  const t = document.getElementById('toast');
-  t.className = 'toast toast-'+type+' show';
-  t.textContent = msg;
-  clearTimeout(t._hide);
-  t._hide = setTimeout(()=>t.classList.remove('show'), 3000);
+// ========== Voice Selector ==========
+function selectVoice(el) {
+  document.querySelectorAll('.voice-card').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+}
+function getSelectedVoice() {
+  const active = document.querySelector('.voice-card.active');
+  return active ? active.dataset.voice : 'zh-CN-XiaoyiNeural';
 }
 
-// ============ 拖拽上传 ============
+// ========== Toast ==========
+function showToast(msg, type='info') {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = 'toast toast-'+type;
+  const icons = {success:'✅',error:'❌',info:'ℹ️'};
+  t.innerHTML = (icons[type]||'ℹ️')+' '+msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 3200);
+}
+
+// ========== Drag & Drop ==========
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
+let currentFile = null;
 
-dropZone.addEventListener('dragover', e=>{e.preventDefault(); dropZone.classList.add('drag-over')});
+dropZone.addEventListener('dragover', e=>{e.preventDefault();dropZone.classList.add('drag-over')});
 dropZone.addEventListener('dragleave', ()=>dropZone.classList.remove('drag-over'));
-dropZone.addEventListener('drop', e=>{
-  e.preventDefault(); dropZone.classList.remove('drag-over');
-  if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
-});
+dropZone.addEventListener('drop', e=>{e.preventDefault();dropZone.classList.remove('drag-over');if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0])});
 fileInput.addEventListener('change', e=>{if(e.target.files.length) handleFile(e.target.files[0])});
 
-function handleFile(file){
-  if(!file.name.endsWith('.txt')){showToast('请选择TXT格式文件','error');return}
-  currentFile = file;
-  document.getElementById('fileInfo').style.display = 'block';
-  document.getElementById('fileName').textContent = file.name;
-  document.getElementById('fileSize').textContent = '('+(file.size/1024).toFixed(1)+' KB)';
-  document.getElementById('pasteText').value = '';
-  document.getElementById('charCount').textContent = '0 字';
-  showToast('已选择文件：'+file.name,'success');
-}
-function clearFile(){
-  currentFile = null;
-  document.getElementById('fileInfo').style.display = 'none';
-  fileInput.value = '';
-}
+function handleFile(f){if(!f.name.endsWith('.txt')){showToast('请选择 TXT 格式文件','error');return}
+  currentFile=f;
+  const fi=document.getElementById('fileInfo');fi.classList.add('visible');
+  document.getElementById('fileName').textContent=f.name;
+  document.getElementById('fileSize').textContent='('+(f.size/1024).toFixed(1)+' KB)';
+  document.getElementById('pasteText').value='';document.getElementById('charCount').textContent='0 字';
+  updateStep(1);showToast('已选择：'+f.name,'success')}
 
-// ============ 字数统计 ============
+function clearFile(){currentFile=null;document.getElementById('fileInfo').classList.remove('visible');fileInput.value=''}
+
+// ========== Text ==========
 document.getElementById('pasteText').addEventListener('input', function(){
-  document.getElementById('charCount').textContent = this.value.length + ' 字';
+  document.getElementById('charCount').textContent=this.value.length+' 字';
+  if(this.value.trim()) updateStep(1);
 });
 
-// ============ 试听音色 ============
-async function previewVoice(){
-  const voice = document.getElementById('voiceSel').value;
-  const rate = document.getElementById('rateInput').value || '+20%';
-  try{
-    const r = await fetch('/api/preview_voice?voice='+encodeURIComponent(voice)+'&rate='+encodeURIComponent(rate)+'&text='+encodeURIComponent('你好，欢迎使用有声书工坊。这是一段语音预览，请选择您喜欢的音色和语速。'));
-    if(!r.ok) throw Error('预览失败');
-    const blob = await r.blob();
-    const url = URL.createObjectURL(blob);
-    const a = new Audio(url);
-    a.play();
-    showToast('🔊 正在播放语音预览...','info');
-  }catch(e){
-    showToast('试听失败：'+e.message,'error');
-  }
+// ========== Step Indicator ==========
+function updateStep(n) {
+  document.querySelectorAll('.step').forEach((s,i)=>{s.classList.toggle('active',i+1===n);s.classList.toggle('done',i+1<n)});
 }
 
-// ============ 检测章节 ============
-async function detectChaptersFromText(){
-  const text = document.getElementById('pasteText').value;
+// ========== Preview Voice ==========
+async function previewVoice() {
+  const voice=getSelectedVoice(),rate=document.getElementById('rateInput').value||'+20%';
+  try{
+    const r=await fetch('/api/preview_voice?voice='+encodeURIComponent(voice)+'&rate='+encodeURIComponent(rate)+'&text='+encodeURIComponent('你好，欢迎使用有声书工坊。这是一段语音预览，请选择您喜欢的音色和语速。'));
+    if(!r.ok) throw Error('预览失败');
+    const blob=await r.blob();const url=URL.createObjectURL(blob);new Audio(url).play();
+    showToast('🔊 正在播放语音预览','info');
+  }catch(e){showToast('试听失败','error')}
+}
+
+// ========== Detect Chapters ==========
+async function detectChapters() {
+  const text=document.getElementById('pasteText').value;
   if(!text.trim()){showToast('请先粘贴文本内容','error');return}
   try{
-    const r = await fetch('/api/detect_chapters',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({text:text.slice(0,50000)})
-    });
-    // fallback: use GET
-    const r2 = await fetch('/api/detect_chapters?text='+encodeURIComponent(text.slice(0,50000)));
-    const d = await r2.json();
-    const ch = d.chapters || [];
-    const container = document.getElementById('chapterPreview');
+    const r=await fetch('/api/detect_chapters?text='+encodeURIComponent(text.slice(0,50000)));
+    const d=await r.json();const ch=d.chapters||[];
+    const pre=document.getElementById('chapterPreview');const list=document.getElementById('chapterList');
+    const cnt=document.getElementById('chapterCount');
     if(ch.length>1){
-      container.style.display = 'block';
-      container.innerHTML = '<div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">检测到 '+ch.length+' 个章节：</div>'+
-        ch.map(c=>'<div class="chapter-item">'+escHtml(c.title)+'</div>').join('');
-      showToast('📑 检测到 '+ch.length+' 个章节','success');
+      pre.classList.add('visible');
+      cnt.textContent='📑 检测到 '+ch.length+' 个章节';
+      list.innerHTML=ch.map(c=>'<div class="chapter-tag">'+escHtml(c.title)+'</div>').join('');
+      showToast('检测到 '+ch.length+' 个章节','success');
     }else{
-      container.style.display = 'none';
-      showToast('未检测到章节结构，将按全文处理','info');
+      pre.classList.remove('visible');showToast('未检测到章节结构，将按全文处理','info');
     }
   }catch(e){showToast('章节检测失败','error')}
 }
-
 function escHtml(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
 
-// ============ 扫描服务器文件 ============
+// ========== Server Files ==========
 async function scanServerFiles(){
-  const dir = document.getElementById('scanDir').value || './output';
+  const dir=document.getElementById('scanDir').value||'./output';
   try{
-    const r = await fetch('/api/scan_txt?base_dir='+encodeURIComponent(dir));
-    const d = await r.json();
-    const files = d.files || [];
-    const container = document.getElementById('serverFiles');
-    if(!files.length){
-      container.innerHTML = '<div style="color:var(--text-dim);font-size:12px">📭 未找到TXT文件</div>';
-      return;
-    }
-    container.innerHTML = files.map(f=>
-      '<div class="history-item" onclick="loadServerFile(\''+escHtml(f.path)+'\')">'+
-        '<span class="h-name">📄 '+escHtml(f.path)+'</span>'+
-        '<span class="h-time">'+(f.size/1024).toFixed(0)+'KB</span>'+
-      '</div>'
+    const r=await fetch('/api/scan_txt?base_dir='+encodeURIComponent(dir));
+    const d=await r.json();const files=d.files||[];
+    const container=document.getElementById('serverFiles');
+    if(!files.length){container.innerHTML='<div class="history-empty" style="font-size:12px">📭 未找到 TXT 文件</div>';return}
+    container.innerHTML=files.map(f=>
+      '<div class="server-file-item" onclick="loadServerFile(\''+escHtml(f.path)+'\')">'+
+        '<span>📄</span><span class="sf-name">'+escHtml(f.path)+'</span><span class="sf-size">'+(f.size/1024).toFixed(0)+'KB</span></div>'
     ).join('');
-    showToast('找到 '+files.length+' 个TXT文件','success');
+    showToast('找到 '+files.length+' 个 TXT 文件','success');
   }catch(e){showToast('扫描失败','error')}
 }
-
 async function loadServerFile(path){
   try{
-    const r = await fetch('/api/read_txt?file_path='+encodeURIComponent(path));
-    const d = await r.json();
-    if(d.code!==0){showToast(d.msg,'error');return}
-    document.getElementById('pasteText').value = d.content;
-    document.getElementById('charCount').textContent = d.content.length+' 字';
-    document.getElementById('taskName').value = d.name.replace('.txt','');
-    clearFile();
-    showToast('已加载：'+d.name,'success');
+    const r=await fetch('/api/read_txt?file_path='+encodeURIComponent(path));
+    const d=await r.json();if(d.code!==0){showToast(d.msg,'error');return}
+    document.getElementById('pasteText').value=d.content;
+    document.getElementById('charCount').textContent=d.content.length+' 字';
+    document.getElementById('taskName').value=d.name.replace('.txt','');
+    clearFile();showToast('已加载：'+d.name,'success');
   }catch(e){showToast('加载失败','error')}
 }
 
-// ============ 开始合成 ============
+// ========== Start Task ==========
 async function startTask(){
-  const txtFile = currentFile;
-  const text = document.getElementById('pasteText').value;
-  const voice = document.getElementById('voiceSel').value;
-  const rate = document.getElementById('rateInput').value || '+20%';
-  const taskName = document.getElementById('taskName').value;
-  const startBtn = document.getElementById('startBtn');
-  const cancelBtn = document.getElementById('cancelBtn');
-
-  if(!txtFile && !text.trim()){showToast('请上传文件或粘贴文本','error');return}
-
-  const fd = new FormData();
-  if(txtFile) fd.append('txtFile', txtFile);
-  if(text.trim()) fd.append('text', text);
-  fd.append('voice', voice);
-  fd.append('rate', rate);
-  if(taskName.trim()) fd.append('task_name_input', taskName.trim());
-
+  const txtFile=currentFile,text=document.getElementById('pasteText').value;
+  const voice=getSelectedVoice(),rate=document.getElementById('rateInput').value||'+20%';
+  const taskName=document.getElementById('taskName').value;
+  if(!txtFile&&!text.trim()){showToast('请上传文件或粘贴文本','error');return}
+  const fd=new FormData();
+  if(txtFile) fd.append('txtFile',txtFile);
+  if(text.trim()) fd.append('text',text);
+  fd.append('voice',voice);fd.append('rate',rate);
+  if(taskName.trim()) fd.append('task_name_input',taskName.trim());
   try{
-    const r = await fetch('/api/start',{method:'POST',body:fd});
-    const d = await r.json();
-    if(d.code!==0){showToast(d.msg,'error');return}
+    const r=await fetch('/api/start',{method:'POST',body:fd});
+    const d=await r.json();if(d.code!==0){showToast(d.msg,'error');return}
     showToast(d.msg,'success');
-    startBtn.disabled = true;
-    cancelBtn.style.display = 'inline-flex';
-    document.getElementById('progressCard').style.display = 'block';
+    document.getElementById('startBtn').disabled=true;
+    document.getElementById('cancelBtn').style.display='inline-flex';
+    document.getElementById('progressSection').classList.add('visible');
     document.getElementById('downloadBox').classList.remove('visible');
-    startPolling();
-  }catch(e){showToast('启动失败：'+e.message,'error')}
+    updateStep(3);startPolling();
+  }catch(e){showToast('启动失败','error')}
 }
 
-// ============ 取消任务 ============
+// ========== Cancel Task ==========
 async function cancelTask(){
-  try{
-    const r = await fetch('/api/cancel',{method:'POST'});
-    const d = await r.json();
-    showToast(d.msg,d.code===0?'info':'error');
-  }catch(e){showToast('取消失败','error')}
+  try{const r=await fetch('/api/cancel',{method:'POST'});const d=await r.json();showToast(d.msg,d.code===0?'info':'error')}
+  catch(e){showToast('取消失败','error')}
 }
 
-// ============ 轮询 ============
+// ========== Poll ==========
+let pollTimer=null;
 function startPolling(){
   if(pollTimer) clearInterval(pollTimer);
-  pollTimer = setInterval(async ()=>{
+  pollTimer=setInterval(async()=>{
     try{
-      const r = await fetch('/api/get_runtime');
-      const d = await r.json();
-      updateUI(d);
-      if(d.state === 'done' || d.state === 'error' || d.state === 'cancelled'){
-        clearInterval(pollTimer);
-        pollTimer = null;
-        document.getElementById('startBtn').disabled = false;
-        document.getElementById('cancelBtn').style.display = 'none';
-        if(d.state === 'done' && d.has_file){
+      const r=await fetch('/api/get_runtime');const d=await r.json();updateUI(d);
+      if(d.state==='done'||d.state==='error'||d.state==='cancelled'){
+        clearInterval(pollTimer);pollTimer=null;
+        document.getElementById('startBtn').disabled=false;
+        document.getElementById('cancelBtn').style.display='none';
+        if(d.state==='done'&&d.has_file){
           document.getElementById('downloadBox').classList.add('visible');
-          document.getElementById('downloadFileName').textContent = d.task_name || '有声书';
+          document.getElementById('downloadFileName').textContent=(d.task_name||'有声书')+' 已生成';
         }
       }
     }catch(e){}
-  }, 800);
+  },800);
 }
 
 function updateUI(d){
-  // badges
-  const badge = document.getElementById('stateBadge');
-  const states = {idle:'badge-idle',running:'badge-running',done:'badge-done',error:'badge-error',cancelled:'badge-cancelled'};
-  badge.className = 'badge '+(states[d.state]||'badge-idle');
-  const labels = {idle:'等待中',running:'运行中',done:'已完成',error:'出错',cancelled:'已取消'};
-  badge.textContent = labels[d.state]||d.state;
+  const badge=document.getElementById('stateBadge');
+  const states={idle:'state-idle',running:'state-running',done:'state-done',error:'state-error',cancelled:'state-cancelled'};
+  const labels={idle:'等待中',running:'生成中',done:'已完成',error:'出错',cancelled:'已取消'};
+  badge.className='state-badge '+(states[d.state]||'state-idle');
+  badge.textContent=labels[d.state]||d.state;
 
-  // status
-  document.getElementById('statusText').textContent = d.status || '—';
+  document.getElementById('statusText').textContent=d.status||'—';
+  document.getElementById('sideStatus').textContent=d.status||'等待任务...';
 
-  // progress
-  document.getElementById('progressBar').style.width = d.progress+'%';
-  document.getElementById('progressText').textContent = d.progress+'%';
-  document.getElementById('progressSeg').textContent = (d.total_seg||0)+' 段';
+  const p=d.progress||0;
+  document.getElementById('progressNum').textContent=p;
+  document.getElementById('progressBarFill').style.width=p+'%';
+  const circumference=213.6;
+  document.getElementById('progressCircle').style.strokeDashoffset=circumference-(p/100)*circumference;
+  document.getElementById('progressDetail').textContent=(d.total_seg||0)+' 段 · '+(d.status||'');
 
-  // log
-  const logBox = document.getElementById('logBox');
-  if(d.log && d.log.length){
-    logBox.innerHTML = d.log.join('<br>');
-    logBox.scrollTop = logBox.scrollHeight;
-  }
+  const logBox=document.getElementById('logBox');
+  if(d.log&&d.log.length){logBox.innerHTML=d.log.map(l=>'<span>'+escHtml(l)+'</span>').join('<br>');logBox.scrollTop=logBox.scrollHeight;}
 }
 
-// ============ 历史记录 ============
+// ========== History ==========
 async function loadHistory(){
   try{
-    const r = await fetch('/api/history');
-    const d = await r.json();
-    const list = d.history || [];
-    const container = document.getElementById('historyList');
-    if(!list.length){
-      container.innerHTML = '<div style="color:var(--text-dim);font-size:12px;padding:8px">暂无记录</div>';
-      return;
-    }
-    container.innerHTML = list.map(h=>{
-      const stateColor = {完成:'var(--green)',失败:'var(--red)',已取消:'var(--orange)'};
-      return '<div class="history-item">'+
-        '<span class="h-name">📖 '+escHtml(h.name)+'</span>'+
-        '<span class="h-state" style="color:'+(stateColor[h.state]||'var(--text-dim)')+'">'+escHtml(h.state)+'</span>'+
-        '<span class="h-time">'+escHtml(h.time)+'</span>'+
-      '</div>';
-    }).join('');
+    const r=await fetch('/api/history');const d=await r.json();const list=d.history||[];
+    const container=document.getElementById('historyList');
+    if(!list.length){container.innerHTML='<div class="history-empty">暂无记录</div>';return}
+    const stateColor={完成:'var(--green)',失败:'var(--red)',已取消:'var(--text-muted)'};
+    container.innerHTML=list.map(h=>'<div class="history-item"><span class="h-icon">📖</span><span class="h-name">'+escHtml(h.name)+
+      '</span><span style="color:'+(stateColor[h.state]||'var(--text-muted)')+';font-size:11px">'+escHtml(h.state)+
+      '</span><span class="h-time">'+escHtml(h.time)+'</span></div>').join('');
   }catch(e){}
 }
 
-// ============ 初始化 ============
-loadHistory();
-scanServerFiles();
+// ========== Init ==========
+loadHistory();scanServerFiles();
 </script>
+
 </body>
 </html>'''
     return html
