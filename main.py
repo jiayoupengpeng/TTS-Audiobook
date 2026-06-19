@@ -1,6 +1,8 @@
 import asyncio
 import os
 import re
+import uuid
+import threading
 import sqlite3
 import subprocess
 import tempfile
@@ -696,7 +698,7 @@ async def calibre_books(page: int = 1, per_page: int = 50, search: str = ""):
 
 @app.get("/api/calibre/extract/{book_id}")
 async def calibre_extract(book_id: int):
-    """提取书籍文本"""
+    """启动后台提取任务，立即返回 task_id"""
     conn = get_calibre_conn()
     if not conn:
         return {"success": False, "error": "未找到 Calibre 数据库"}
@@ -730,16 +732,47 @@ async def calibre_extract(book_id: int):
     
     fmt = row["format"]
     file_path = get_book_file_path(row["path"], row["name"], fmt)
+    conn.close()
     
     if not file_path:
-        conn.close()
-        return {"success": False, "error": f"找不到文件: {row['path']}/{row['name']}.{fmt.lower()}，请挂载书库目录"}
+        return {"success": False, "error": f"找不到文件，请挂载书库目录"}
     
-    conn.close()
-    result = extract_text_from_file(file_path, fmt)
-    result["book_title"] = row["title"]
-    result["book_author"] = row["author"]
-    return result
+    task_id = str(uuid.uuid4())
+    extraction_tasks[task_id] = {"status": "running", "result": None, "error": None, "book_title": row["title"]}
+    
+    def _do_extract(tid, fp, ffmt, title, author):
+        try:
+            result = extract_text_from_file(fp, ffmt)
+            result["book_title"] = title
+            result["book_author"] = author
+            extraction_tasks[tid] = {"status": "done", "result": result, "error": None, "book_title": title}
+        except Exception as e:
+            extraction_tasks[tid] = {"status": "error", "result": None, "error": str(e), "book_title": title}
+    
+    t = threading.Thread(target=_do_extract, args=(task_id, file_path, fmt, row["title"], row["author"]))
+    t.daemon = True
+    t.start()
+    
+    return {"task_id": task_id, "status": "started", "book_title": row["title"]}
+
+
+extraction_tasks = {}
+
+
+@app.get("/api/calibre/extract_status/{task_id}")
+async def calibre_extract_status(task_id: str):
+    """轮询提取任务状态"""
+    task = extraction_tasks.get(task_id)
+    if not task:
+        return {"status": "not_found"}
+    
+    if task["status"] == "running":
+        return {"status": "running", "book_title": task["book_title"]}
+    
+    if task["status"] == "done":
+        return {"status": "done", "result": task["result"]}
+    
+    return {"status": "error", "error": task["error"], "book_title": task["book_title"]}
 
 
 # ===================== 前端页面 =====================
@@ -1699,28 +1732,67 @@ async function loadCalibreBooks() {
 async function extractCalibreBook(bookId, el) {
   el.classList.add('loading');
   el.querySelector('.cb-title').innerHTML = '⏳ 正在提取...';
+  var bookTitle = '';
   try {
     const r = await fetch('/api/calibre/extract/' + bookId);
     const d = await r.json();
-    el.classList.remove('loading');
-
-    if (d.success) {
-      document.getElementById('pasteText').value = d.text;
-      document.getElementById('charCount').textContent = d.text.length + ' 字';
-      document.getElementById('taskName').value = d.book_title || '';
-      clearFile();
-      showToast('✅ 已加载：《' + (d.book_title || '') + '》' + (d.text.length/10000).toFixed(1) + '万字', 'success');
-      // 滚动到文本区
-      document.getElementById('pasteText').scrollIntoView({behavior: 'smooth'});
-    } else {
-      showToast('❌ ' + (d.error || '提取失败'), 'error');
+    if (d.status !== 'started' || !d.task_id) {
+      el.classList.remove('loading');
+      showToast('❌ ' + (d.error || '启动失败'), 'error');
       el.querySelector('.cb-title').textContent = d.book_title || '提取失败';
+      return;
     }
+    bookTitle = d.book_title || '';
+    // 显示带计时器的状态
+    var dots = 0;
+    var statusMsg = el.querySelector('.cb-status');
+    if (!statusMsg) {
+      statusMsg = document.createElement('span');
+      statusMsg.className = 'cb-status';
+      el.appendChild(statusMsg);
+    }
+    statusMsg.textContent = '⏳ 提取中';
+
+    // 轮询提取状态
+    var pollTimer = setInterval(async function() {
+      try {
+        var r2 = await fetch('/api/calibre/extract_status/' + d.task_id);
+        var s = await r2.json();
+        if (s.status === 'running') {
+          dots = (dots + 1) % 4;
+          statusMsg.textContent = '⏳ 提取中' + '.'.repeat(dots);
+          return;
+        }
+        clearInterval(pollTimer);
+        el.classList.remove('loading');
+        if (s.status === 'done' && s.result && s.result.success) {
+          document.getElementById('pasteText').value = s.result.text;
+          document.getElementById('charCount').textContent = s.result.text.length + ' 字';
+          document.getElementById('taskName').value = s.result.book_title || bookTitle;
+          clearFile();
+          var wc = (s.result.text.length / 10000).toFixed(1);
+          showToast('✅ 已加载：《' + (s.result.book_title || bookTitle) + '》' + wc + '万字', 'success');
+          document.getElementById('pasteText').scrollIntoView({behavior: 'smooth'});
+          statusMsg.textContent = '✅ ' + wc + '万字';
+          el.querySelector('.cb-title').textContent = s.result.book_title || bookTitle;
+        } else {
+          var errMsg = (s.result && s.result.error) || s.error || '提取失败';
+          showToast('❌ ' + errMsg, 'error');
+          statusMsg.textContent = '❌ 失败';
+          el.querySelector('.cb-title').textContent = s.book_title || bookTitle || '提取失败';
+        }
+      } catch(e) {
+        clearInterval(pollTimer);
+        el.classList.remove('loading');
+        showToast('❌ 轮询失败', 'error');
+        el.querySelector('.cb-title').textContent = bookTitle || '请求失败';
+      }
+    }, 1000);
   } catch (e) {
     el.classList.remove('loading');
     showToast('❌ 请求失败', 'error');
+    el.querySelector('.cb-title').textContent = bookTitle || '请求失败';
   }
-  el.querySelector('.cb-title').textContent = d && d.book_title ? d.book_title : '请求失败';
 }
 
 // ========== Init ==========
